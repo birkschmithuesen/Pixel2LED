@@ -1,11 +1,22 @@
+// 25 fps: 6 out / 300 pixel (1800 px)
+// 30 fps: 5 out / 300 pixel (1500 px)
+// 40 fps: 4 out / 300 pixel (1200 px)
+// 25 fps: 3 out / 600 pixel (1800 px)
+// 44 fps: 2 out / 600 pixel (1200 px)
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // initial user defined settings
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define NUM_OF_OUTPUTS 6
-#define MAX_NUM_LED_PER_OUTPUT 360
+#define NUM_OF_OUTPUTS 2
+#define MAX_NUM_LED_PER_OUTPUT 600
 #define NUM_CHANNEL_PER_LED 4 // do not change this
+
+#define LED_TYPE    APA102
+#define COLOR_ORDER RGB
+#define BRIGHTNESS 255
+#define REFRESH_RATE_KHZ 1200
 
 //#define blackOnOpSyncTimeOut //recoment more than 20000 ms
 //#define blackOnOpPollTimeOut //recoment more than 20000 ms
@@ -20,11 +31,13 @@ const static uint32_t OpPollTimeOut = 30000;
 
 const int num_channel_per_output = MAX_NUM_LED_PER_OUTPUT * NUM_CHANNEL_PER_LED;
 
-const int num_universes_per_output = (num_channel_per_output%512) ? num_channel_per_output/512+1 : num_channel_per_output/512;
+const int num_universes_per_output = (num_channel_per_output % 512) ? num_channel_per_output / 512 + 1 : num_channel_per_output / 512;
 
-const int num_led_per_output = num_universes_per_output*512/NUM_CHANNEL_PER_LED;
+const int num_led_per_output = num_universes_per_output * 512 / NUM_CHANNEL_PER_LED;
 
-const int num_artnet_ports = num_universes_per_output*NUM_OF_OUTPUTS;
+const int num_artnet_ports = num_universes_per_output * NUM_OF_OUTPUTS;
+
+const int num_led_per_universe = int(512 / NUM_CHANNEL_PER_LED);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -37,7 +50,7 @@ const int num_artnet_ports = num_universes_per_output*NUM_OF_OUTPUTS;
 #include <ArtNode.h>
 #include "ArtNetFrameExtension.h"
 
-#include <OctoWS2811.h>
+#include "FastLED.h"
 
 #include "TeensyMAC.h"
 #include <EEPROM.h>
@@ -81,17 +94,13 @@ uint32_t lastSync = 0;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// octoWS2811
+// FastLED config
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t dmxMemory[num_led_per_output * 8];
-DMAMEM uint32_t displayMemory[num_led_per_output * 8];
-uint32_t drawingMemory[num_led_per_output * 8];
+int num_leds = NUM_OF_OUTPUTS * MAX_NUM_LED_PER_OUTPUT;
 
-const int LEDconfig = WS2811_RGBW | WS2811_800kHz;
-
-OctoWS2811 LEDS(num_led_per_output, displayMemory, drawingMemory, LEDconfig);
+CRGB leds[NUM_OF_OUTPUTS * MAX_NUM_LED_PER_OUTPUT];
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -107,9 +116,9 @@ ArtConfig config = {
   false,                                // DHCP
 
   // These fields get overwritten by loadConfig:
-  0, 0,                                 // Net (0-127) and subnet (0-15)
-  "BlackLED_6",                           // Short name
-  "BlackLED_6_port",                     // Long name
+  2, 6,                                 // Net (0-127) and subnet (0-15)
+  "Pixel2LED#21",                           // Short name
+  "Pixel2LED#21",                     // Long name
   num_artnet_ports, // Number of ports
   { PortTypeDmx | PortTypeOutput,
     PortTypeDmx | PortTypeOutput,
@@ -143,15 +152,15 @@ void artnetSend(byte* buffer, int length) {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void blink() {
-  for (int i = 0; i < 8 * num_led_per_output; i++) {
-    LEDS.setPixel(i, 0xFFFFFFFF); //set full white
+  for (int i = 0; i < num_leds; i++) {
+    leds[i] = CRGB(0, 0, 255); //set blue
   }
-  LEDS.show();
+  FastLED.show();
   delay(300);
-  for (int i = 0; i <  8 * num_led_per_output; i++) {
-    LEDS.setPixel(i, 0x00000000); //set 0
+  for (int i = 0; i <  num_leds; i++) {
+    leds[i] = CRGB(0, 0, 0); //set 0
   }
-  LEDS.show();
+  FastLED.show();
   delay(100);
 }
 
@@ -211,7 +220,8 @@ void saveConfig() {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void setup() {
-  //saveConfig(); //<-- uncomment to force the EEPROM config to your settings on eatch reboot
+ // Serial.begin(115200);
+  saveConfig(); //<-- uncomment to force the EEPROM config to your settings on eatch reboot
   ArtConfig tempConfig = config;
   loadConfig();
   config.numPorts = tempConfig.numPorts;
@@ -251,8 +261,16 @@ void setup() {
   // Open ArtNet
   node = ArtNodeExtended(config, sizeof(udp_buffer), udp_buffer);
 
-  LEDS.begin();
-  LEDS.show();
+  // Setup FastLed
+  if (NUM_OF_OUTPUTS > 0)FastLED.addLeds<LED_TYPE, 14, 7, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 0, MAX_NUM_LED_PER_OUTPUT);
+  if (NUM_OF_OUTPUTS > 1)FastLED.addLeds<LED_TYPE, 6, 5, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, MAX_NUM_LED_PER_OUTPUT, MAX_NUM_LED_PER_OUTPUT);
+  if (NUM_OF_OUTPUTS > 2)FastLED.addLeds<LED_TYPE, 6, 5, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 2 * MAX_NUM_LED_PER_OUTPUT, MAX_NUM_LED_PER_OUTPUT);
+  if (NUM_OF_OUTPUTS > 3)FastLED.addLeds<LED_TYPE, 16, 15, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 3 * MAX_NUM_LED_PER_OUTPUT, MAX_NUM_LED_PER_OUTPUT);
+  if (NUM_OF_OUTPUTS > 4)FastLED.addLeds<LED_TYPE, 18, 17, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 4 * MAX_NUM_LED_PER_OUTPUT, MAX_NUM_LED_PER_OUTPUT);
+  if (NUM_OF_OUTPUTS > 5)FastLED.addLeds<LED_TYPE, 20, 19, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 5 * MAX_NUM_LED_PER_OUTPUT, MAX_NUM_LED_PER_OUTPUT);
+
+  FastLED.setBrightness(BRIGHTNESS);
+  FastLED.setDither(1);
 
   blink();
 
@@ -286,9 +304,9 @@ void loop() {
               //T_ArtPoll* poll = (T_ArtPoll*)udp_buffer;
               //if(poll->TalkToMe & 0x2){
 
-              #ifdef blackOnOpPollTimeOut
-                lastPoll = millis();
-              #endif
+#ifdef blackOnOpPollTimeOut
+              lastPoll = millis();
+#endif
 
               float tempCelsius = 25.0 + 0.17083 * (2454.19 - tempVal);
               sprintf(node.pollReport, "numOuts;%d;numUniPOut;%d;temp;%.1f;fps;%.1f;uUniPF;%.1f;", NUM_OF_OUTPUTS, num_universes_per_output, tempCelsius, fps, avgUniUpdated);
@@ -303,12 +321,25 @@ void loop() {
               ArtDmx* dmx = (ArtDmx*)udp_buffer;
               int port = node.getAddress(dmx->SubUni, dmx->Net) - node.getStartAddress();
               if (port >= 0 && port < config.numPorts) {
-                uint16_t portOffset = port * 512/NUM_CHANNEL_PER_LED;
+
+
+                uint16_t portOffset = 0;
+
+                for (int i = 0; i < port; i++) {
+                  portOffset = portOffset + num_led_per_universe;
+                  // skip to next universe, if the number of led per output is reached.
+                  // like that, every output of the controller will start with dmx adress 1 on a new universe
+                  int numLedOnOutput = portOffset - int(portOffset / MAX_NUM_LED_PER_OUTPUT) * MAX_NUM_LED_PER_OUTPUT; //subtstracts the outputs where the max number of led is reached. the result tells, how much left over data exists in the universe
+                  if (numLedOnOutput == num_led_per_output - MAX_NUM_LED_PER_OUTPUT) {
+                    portOffset = portOffset - numLedOnOutput;
+                  }
+                }
 
                 //write the dmx data to the Octo frame buffer
                 uint32_t* dmxData = (uint32_t*) dmx->Data;
                 for (int i = 0; i < 128; i++) {
-                  LEDS.setPixel(i + portOffset, dmxData[i]);
+                  //int ledIndex=i+portOffset
+                  leds[i + portOffset] = CRGB(dmxData[i]);
                 }
                 numUniUpdated++;
               }
@@ -317,15 +348,16 @@ void loop() {
 
           // OpSync
           case 0x5200: {
-              LEDS.show();
+            //  Serial.println(fps);
+              FastLED.show();
 
-              #ifdef blackOnOpSyncTimeOut
-                lastSync = millis();
-              #endif
+#ifdef blackOnOpSyncTimeOut
+              lastSync = millis();
+#endif
 
               // calculate framerate
               currentMillis = millis();
-              if(currentMillis > previousMillis){
+              if (currentMillis > previousMillis) {
                 fps = 1 / ((currentMillis - previousMillis) * 0.001);
               } else {
                 fps = 0;
@@ -407,16 +439,16 @@ void loop() {
               break;
             }
         }
-      }else if(memcmp(header->ID, "MadrixN", 8) == 0){
+      } else if (memcmp(header->ID, "MadrixN", 8) == 0) {
         LEDS.show();
 
-        #ifdef blackOnOpSyncTimeOut
-          lastSync = millis();
-        #endif
+#ifdef blackOnOpSyncTimeOut
+        lastSync = millis();
+#endif
 
         // calculate framerate
         currentMillis = millis();
-        if(currentMillis > previousMillis){
+        if (currentMillis > previousMillis) {
           fps = 1 / ((currentMillis - previousMillis) * 0.001);
         } else {
           fps = 0;
@@ -433,23 +465,23 @@ void loop() {
   // read temperature value
   tempVal = analogRead(38) * 0.01 + tempVal * 0.99;
 
-  #ifdef blackOnOpSyncTimeOut
-    currentMillis = millis();
-    if (currentMillis - lastSync > OpSyncTimeOut) {
-      for (int i = 0; i < num_led_per_output * 8; i++) {
-        LEDS.setPixel(i, 0);
-      }
-      LEDS.show();
+#ifdef blackOnOpSyncTimeOut
+  currentMillis = millis();
+  if (currentMillis - lastSync > OpSyncTimeOut) {
+    for (int i = 0; i < num_led_per_output * 8; i++) {
+      LEDS.setPixel(i, 0);
     }
-  #endif
+    LEDS.show();
+  }
+#endif
 
-  #ifdef blackOnOpPollTimeOut
-    currentMillis = millis();
-    if (currentMillis - lastPoll > OpPollTimeOut) {
-      for (int i = 0; i < num_led_per_output * 8; i++) {
-        LEDS.setPixel(i, 0);
-      }
-      LEDS.show();
+#ifdef blackOnOpPollTimeOut
+  currentMillis = millis();
+  if (currentMillis - lastPoll > OpPollTimeOut) {
+    for (int i = 0; i < num_led_per_output * 8; i++) {
+      LEDS.setPixel(i, 0);
     }
-  #endif
+    LEDS.show();
+  }
+#endif
 }
