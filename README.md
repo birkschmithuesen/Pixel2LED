@@ -11,8 +11,7 @@ The code in this repository is available under the MIT License.
 1. Install [Arduino (1.8.1)](https://www.arduino.cc/)
 - Install [Teensyduino (1.35)](https://www.pjrc.com/teensy/td_download.html)
 - Install [ArtNode lib](https://github.com/vertigo-dk/ArtNode)
-- Install modified [OctoWS2811 lib](https://github.com/alex-Arc/OctoWS2811)
-- Install modified [Ethernet lib](https://github.com/alex-Arc/Ethernet/tree/1-socket)
+- Install modified with 2 sockets in repo Ethernet-2-socket.zip [credit: Ethernet lib](https://github.com/alex-Arc/Ethernet/tree/1-socket)
 
 - Open Arduino IDE
  - In ```Tools -> Board```  ```Teensy 3.1/3.2```
