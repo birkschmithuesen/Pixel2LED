@@ -4,6 +4,11 @@ Software for the BlackLED controller
 ## Introduction
 Code for the Teensy 3.1/3.2 running the BlackLED controller. Compatible with Arduino IDE.
 
+## User manual
+Operating / configuration manual (power management of the pixel stripes,
+output & framerate configurations, ArtNet / universe setup, web interface):
+see [docs/manual.md](docs/manual.md).
+
 ## Licence
 The code in this repository is available under the MIT License.
 
