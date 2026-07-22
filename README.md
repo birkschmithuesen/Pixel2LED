@@ -13,6 +13,7 @@ The code in this repository is available under the MIT License.
 - Install [ArtNode lib](https://github.com/vertigo-dk/ArtNode)
 - Install modified ethernet Lib with 2 sockets in repo Ethernet-2-socket.zip
 [credit: Ethernet lib](https://github.com/alex-Arc/Ethernet/tree/1-socket)
+  - **Important:** Teensyduino ships its own library also named `Ethernet`. It will silently take priority over this one and cause massive Art-Net packet loss with no compile error. See "Silent wrong Ethernet library" in `CLAUDE.md` for the fix.
 
 - Open Arduino IDE
  - In ```Tools -> Board```  ```Teensy 3.1/3.2```
@@ -35,6 +36,8 @@ The nodes get an calculated IP address from the MAC address accordingly to ArtNe
 
 ## Known issues
 at over 18 DMX universes it will begin to drop packages
+
+If a controller drops most DMX universes (only the first output or so ever updates) despite everything looking correctly wired/configured, check which `Ethernet` library actually got compiled in before suspecting CPU speed, SPI speed, or refresh rate — see `CLAUDE.md`.
 
 ---
 

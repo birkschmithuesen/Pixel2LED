@@ -799,7 +799,7 @@ digitalWrite(redLed, HIGH);
   num_led_per_universe = int(512 / NUM_CHANNEL_PER_LED);
 
   num_leds = NUM_OF_OUTPUTS * hardware_num_led_per_output;
-  leds = new CRGB[NUM_OF_OUTPUTS * hardware_num_led_per_output]; 
+  leds = new CRGB[NUM_OF_OUTPUTS * hardware_num_led_per_output];
 
   config.numPorts = num_artnet_ports;
 
@@ -832,7 +832,7 @@ digitalWrite(redLed, HIGH);
   Serial.print("server is at ");
   Serial.println(Ethernet.localIP());
 
-  
+
   udp.begin(config.udpPort);
   // Open ArtNet
   node = ArtNodeExtended(config, sizeof(udp_buffer), udp_buffer);
