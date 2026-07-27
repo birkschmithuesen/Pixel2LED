@@ -24,6 +24,7 @@
 15, 16 universe (lowbyte, highbyte)
 17 Number of Outputs
 18,19 number of leds/output (lowbyte, highbyte)
+21-26 Output enable (0=disabled,1=enabled) for Out1-Out6
  */
 
 
@@ -54,11 +55,12 @@
 byte NUM_OF_OUTPUTS;
 int hardware_num_led_per_output;
 byte NUM_CHANNEL_PER_LED = 4; // do not change this
+byte outputEnableMask = 0x3F; // bit 0 = Out1, bit 1 = Out2, ..., 1=enabled
 
 #define LED_TYPE    APA102
 #define COLOR_ORDER RGB
 byte BRIGHTNESS = 255;
-const int REFRESH_RATE_KHZ = 1200;
+const int REFRESH_RATE_KHZ = 2400;
 
 //#define blackOnOpSyncTimeOut //recoment more than 20000 ms
 //#define blackOnOpPollTimeOut //recoment more than 20000 ms
@@ -202,6 +204,14 @@ prog_char htmld3[] PROGMEM = "\"></td></tr><tr><td>Reload setup page before chan
 prog_char htmld4[] PROGMEM = "</td></tr><tr><td><br></td></tr><tr><td><input id=\"button1\"type=\"submit\" value=\"REBOOT\" ";
 prog_char htmld5[] PROGMEM = "></td></tr></form></table></body></html>";
 PROGMEM const char *string_table4[] = {htmld0, htmld1, htmld2, htmld3, htmld4, htmld5};
+
+prog_char htmlout0[] PROGMEM = "\"></td></tr><tr><td colspan=\"2\"><small>Ausg&auml;nge 1-6 = fortlaufende Z&auml;hlung, unabh&auml;ngig von der physischen Pin-Belegung. Wert: 1 = an, 0 = aus.</small></td></tr><tr><td>Out1 (14,7): <input type=\"text\" size=\"1\" maxlength=\"1\" name=\"DT21\" value=\"";
+prog_char htmlout1[] PROGMEM = "\"></td></tr><tr><td>Out2 (22,21): <input type=\"text\" size=\"1\" maxlength=\"1\" name=\"DT22\" value=\"";
+prog_char htmlout2[] PROGMEM = "\"></td></tr><tr><td>Out3 (6,5): <input type=\"text\" size=\"1\" maxlength=\"1\" name=\"DT23\" value=\"";
+prog_char htmlout3[] PROGMEM = "\"></td></tr><tr><td>Out4 (16,15): <input type=\"text\" size=\"1\" maxlength=\"1\" name=\"DT24\" value=\"";
+prog_char htmlout4[] PROGMEM = "\"></td></tr><tr><td>Out5 (18,17): <input type=\"text\" size=\"1\" maxlength=\"1\" name=\"DT25\" value=\"";
+prog_char htmlout5[] PROGMEM = "\"></td></tr><tr><td>Out6 (20,19): <input type=\"text\" size=\"1\" maxlength=\"1\" name=\"DT26\" value=\"";
+PROGMEM const char *string_table_outputs[] = {htmlout0, htmlout1, htmlout2, htmlout3, htmlout4, htmlout5};
 
 prog_char htmle0[] PROGMEM = "Onclick=\"document.getElementById('T2').value ";
 prog_char htmle1[] PROGMEM = "= hex2num(document.getElementById('T1').value);";
@@ -552,6 +562,13 @@ void webInterface() {
                 // if val from "DT" is 17 the according value must be the universe subnet
                 if (val == 17)hardware_num_led_per_output = finder.getValue();
 
+                // if val from "DT" is 21-26 the according value is per-output enable
+                if (val >= 21 && val <= 26) {
+                  byte en = finder.getValue();
+                  if (en == 1) outputEnableMask |= (1 << (val - 21));
+                  else outputEnableMask &= ~(1 << (val - 21));
+                }
+
               }
               // Now that we got all the data, we can save it to EEPROM
               for (int i = 0 ; i < 6; i++) {
@@ -568,6 +585,12 @@ void webInterface() {
               EEPROM.write(17, NUM_OF_OUTPUTS);
               EEPROM.write(18, lowByte(hardware_num_led_per_output));
               EEPROM.write(19, highByte(hardware_num_led_per_output));
+              EEPROM.write(21, (outputEnableMask >> 0) & 1);
+              EEPROM.write(22, (outputEnableMask >> 1) & 1);
+              EEPROM.write(23, (outputEnableMask >> 2) & 1);
+              EEPROM.write(24, (outputEnableMask >> 3) & 1);
+              EEPROM.write(25, (outputEnableMask >> 4) & 1);
+              EEPROM.write(26, (outputEnableMask >> 5) & 1);
 
               /*
               for (int i = 0 ; i < 3; i++) {
@@ -658,6 +681,11 @@ void webInterface() {
             strcpy_P(buffer, (char*)pgm_read_dword(&(string_table4[2])));
             client.print( buffer );
             client.print(hardware_num_led_per_output, DEC);
+            for (int i = 0; i < 6; i++) {
+              strcpy_P(buffer, (char*)pgm_read_dword(&(string_table_outputs[i])));
+              client.print( buffer );
+              client.print((outputEnableMask >> i) & 1, DEC);
+            }
             strcpy_P(buffer, (char*)pgm_read_dword(&(string_table4[3])));
             client.print( buffer );
             //    client.print(REFRESH_RATE_KHZ, DEC);
@@ -764,6 +792,8 @@ digitalWrite(redLed, HIGH);
 
     NUM_OF_OUTPUTS = 5;
     hardware_num_led_per_output = 300;
+    outputEnableMask = 0x3F;
+    for (byte i = 0; i < 6; i++) EEPROM.write(21 + i, 1);
     //ifcheck id is not the value as const byte ID,
     //it means this sketch has NOT been used to setup the shield before
     //just use the values written in the beginning of the sketch
@@ -785,11 +815,29 @@ digitalWrite(redLed, HIGH);
     universe = int(word(EEPROM.read(16), EEPROM.read(15)));
     hardware_num_led_per_output = int(word(EEPROM.read(19), EEPROM.read(18)));
     NUM_OF_OUTPUTS = EEPROM.read(17);
+    outputEnableMask = EEPROM.read(21);
+    if (outputEnableMask > 1) {
+      // old single-byte bitmask format → migrate to individual bytes
+      for (byte i = 0; i < 6; i++) {
+        EEPROM.write(21 + i, (outputEnableMask >> i) & 1);
+      }
+    }
+    outputEnableMask = 0;
+    for (byte i = 0; i < 6; i++) {
+      if (EEPROM.read(21 + i) == 1) outputEnableMask |= (1 << i);
+    }
 
     Ethernet.begin(config.mac, ip, gateway, gateway, subnet);
   }
 
 
+  byte configuredOutputs = NUM_OF_OUTPUTS;
+  byte enabledCount = 0;
+  for (byte i = 0; i < configuredOutputs && i < 6; i++) {
+    if (outputEnableMask & (1 << i)) enabledCount++;
+  }
+  if (enabledCount == 0) enabledCount = 1;
+  NUM_OF_OUTPUTS = enabledCount;
 
 
   num_channel_per_output = hardware_num_led_per_output * NUM_CHANNEL_PER_LED;
@@ -817,12 +865,22 @@ digitalWrite(redLed, HIGH);
   }
 
   // Setup FastLed
-   if (NUM_OF_OUTPUTS > 0)FastLED.addLeds<LED_TYPE, 14, 7, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 0, hardware_num_led_per_output);
-  if (NUM_OF_OUTPUTS > 1)FastLED.addLeds<LED_TYPE, 22, 21, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, hardware_num_led_per_output, hardware_num_led_per_output);
-  if (NUM_OF_OUTPUTS > 2)FastLED.addLeds<LED_TYPE, 6, 5, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 2 * hardware_num_led_per_output, hardware_num_led_per_output);
-  if (NUM_OF_OUTPUTS > 3)FastLED.addLeds<LED_TYPE, 16, 15, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 3 * hardware_num_led_per_output, hardware_num_led_per_output);
-  if (NUM_OF_OUTPUTS > 4)FastLED.addLeds<LED_TYPE, 18, 17, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 4 * hardware_num_led_per_output, hardware_num_led_per_output);
-  if (NUM_OF_OUTPUTS > 5)FastLED.addLeds<LED_TYPE, 20, 19, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, 5 * hardware_num_led_per_output, hardware_num_led_per_output);
+  byte ledLogicalIndex = 0;
+  for (byte physOut = 0; physOut < configuredOutputs; physOut++) {
+    if (outputEnableMask & (1 << physOut)) {
+      int offset = ledLogicalIndex * hardware_num_led_per_output;
+      int count = hardware_num_led_per_output;
+      switch (physOut) {
+        case 0: FastLED.addLeds<LED_TYPE, 14, 7, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, offset, count); break;
+        case 1: FastLED.addLeds<LED_TYPE, 22, 21, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, offset, count); break;
+        case 2: FastLED.addLeds<LED_TYPE, 6, 5, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, offset, count); break;
+        case 3: FastLED.addLeds<LED_TYPE, 16, 15, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, offset, count); break;
+        case 4: FastLED.addLeds<LED_TYPE, 18, 17, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, offset, count); break;
+        case 5: FastLED.addLeds<LED_TYPE, 20, 19, COLOR_ORDER, DATA_RATE_KHZ(REFRESH_RATE_KHZ)>(leds, offset, count); break;
+      }
+      ledLogicalIndex++;
+    }
+  }
   FastLED.setDither(1);
 
   blink();
