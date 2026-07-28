@@ -792,8 +792,8 @@ digitalWrite(redLed, HIGH);
 
     NUM_OF_OUTPUTS = 5;
     hardware_num_led_per_output = 300;
-    outputEnableMask = 0x3F;
-    for (byte i = 0; i < 6; i++) EEPROM.write(21 + i, 1);
+    outputEnableMask = 0x1F; // outputs 1-5 enabled by default (Out6 off)
+    for (byte i = 0; i < 6; i++) EEPROM.write(21 + i, (outputEnableMask >> i) & 1);
     //ifcheck id is not the value as const byte ID,
     //it means this sketch has NOT been used to setup the shield before
     //just use the values written in the beginning of the sketch
@@ -831,9 +831,13 @@ digitalWrite(redLed, HIGH);
   }
 
 
-  byte configuredOutputs = NUM_OF_OUTPUTS;
+  // Active outputs are chosen solely by the enable mask across all 6 physical
+  // outputs, independent of the legacy "number of outputs" field. The active
+  // count is the number of enabled outputs; disabled ones are skipped so the
+  // DMX data packs onto the next enabled output (e.g. Out1+Out3 off -> the 2nd
+  // data block lands on Out4).
   byte enabledCount = 0;
-  for (byte i = 0; i < configuredOutputs && i < 6; i++) {
+  for (byte i = 0; i < 6; i++) {
     if (outputEnableMask & (1 << i)) enabledCount++;
   }
   if (enabledCount == 0) enabledCount = 1;
@@ -866,7 +870,7 @@ digitalWrite(redLed, HIGH);
 
   // Setup FastLed
   byte ledLogicalIndex = 0;
-  for (byte physOut = 0; physOut < configuredOutputs; physOut++) {
+  for (byte physOut = 0; physOut < 6; physOut++) {
     if (outputEnableMask & (1 << physOut)) {
       int offset = ledLogicalIndex * hardware_num_led_per_output;
       int count = hardware_num_led_per_output;
